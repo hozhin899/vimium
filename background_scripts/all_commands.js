@@ -96,6 +96,16 @@ const list = [
   },
 
   {
+    name: "cycleScrollFocus",
+    desc: "Cycle which scrollable area (side panel, chat, page) the scroll keys act on",
+    group: "navigation",
+    noRepeat: true,
+    options: {
+      backwards: "Cycle to the previous scrollable area instead of the next one.",
+    },
+  },
+
+  {
     name: "reload",
     desc: "Reload the page",
     group: "navigation",

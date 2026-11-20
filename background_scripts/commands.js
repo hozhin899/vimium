@@ -437,6 +437,8 @@ const defaultKeyMappings = {
   "]]": "goNext",
   "gf": "nextFrame",
   "gF": "mainFrame",
+  "gp": "cycleScrollFocus",
+  "gP": "cycleScrollFocus backwards",
   "gu": "goUp",
   "gU": "goToRoot",
   "i": "enterInsertMode",

@@ -341,6 +341,18 @@ class VisualMode extends KeyHandlerMode {
         }),
     });
 
+    // C3: a caret left inside an editable element (e.g. the message box after Esc) is not a useful
+    // anchor. Clear it so that we fall through to caret mode on visible, non-editable text.
+    if (this.name !== "caret" && this.selection.type === "Caret") {
+      const focusElement = DomUtils.getSelectionFocusElement();
+      if (focusElement && (focusElement.isContentEditable || DomUtils.isEditable(focusElement))) {
+        this.selection.removeAllRanges();
+        if (document.activeElement && DomUtils.isEditable(document.activeElement)) {
+          document.activeElement.blur();
+        }
+      }
+    }
+
     // Establish or use the initial selection. If that's not possible, then enter caret mode.
     if (this.name !== "caret") {
       if (["Caret", "Range"].includes(this.selection.type)) {
@@ -607,6 +619,10 @@ class CaretMode extends VisualMode {
   // TODO(smblott). It might be better to do something similar to Clearly or Readability; that is,
   // try to find the start of the page's main textual content.
   establishInitialSelectionAnchor() {
+    // C4: prefer visible text under or near the mouse pointer.
+    if (this.establishAnchorNearPointer()) {
+      return true;
+    }
     let node;
     const nodes = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     while ((node = nodes.nextNode())) {
@@ -625,6 +641,74 @@ class CaretMode extends VisualMode {
       }
     }
     return false;
+  }
+
+  // Place the initial caret on visible, non-editable text at the mouse pointer. If the pointer is
+  // over a gap, use the first visible text inside the element under it. Returns true on success.
+  establishAnchorNearPointer() {
+    const pointer = Scroller.getMousePosition();
+    if (!pointer) {
+      return false;
+    }
+    const isUsable = (n) => {
+      if (!n || (n.nodeType !== Node.TEXT_NODE) || (n.data.trim().length === 0)) {
+        return false;
+      }
+      const parent = n.parentElement;
+      if (!parent || parent.isContentEditable || DomUtils.isEditable(parent)) {
+        return false;
+      }
+      if (!DomUtils.getVisibleClientRect(parent)) {
+        return false;
+      }
+      const r = document.createRange();
+      r.selectNodeContents(n);
+      const box = r.getBoundingClientRect();
+      return (box.bottom > 0) && (box.top < globalThis.innerHeight);
+    };
+
+    let node = null;
+    let offset = 0;
+    if (document.caretRangeFromPoint) {
+      const r = document.caretRangeFromPoint(pointer.x, pointer.y);
+      if (r) {
+        node = r.startContainer;
+        offset = r.startOffset;
+      }
+    } else if (document.caretPositionFromPoint) {
+      const position = document.caretPositionFromPoint(pointer.x, pointer.y);
+      if (position) {
+        node = position.offsetNode;
+        offset = position.offset;
+      }
+    }
+
+    if (!isUsable(node)) {
+      node = null;
+      const el = document.elementFromPoint(pointer.x, pointer.y);
+      if (el) {
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        let candidate;
+        while ((candidate = walker.nextNode())) {
+          if (isUsable(candidate)) {
+            node = candidate;
+            break;
+          }
+        }
+      }
+      if (!node) {
+        return false;
+      }
+      // Start at the offset of the first non-whitespace character.
+      offset = node.data.length - node.data.replace(/^\s+/, "").length;
+    }
+
+    offset = Math.min(offset, node.data.length);
+    const range = document.createRange();
+    range.setStart(node, offset);
+    range.setEnd(node, offset);
+    this.movement.setSelectionRange(range);
+    return true;
   }
 }
 

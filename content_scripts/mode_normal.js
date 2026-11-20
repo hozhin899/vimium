@@ -12,6 +12,20 @@ class NormalMode extends KeyHandlerMode {
 
     super.init(Object.assign(defaults, options));
 
+    // G1/D2: on claude.ai, never let a full Esc press (keydown + keyup) reach the page from
+    // normal mode, since the page treats it as "stop generating".
+    if (globalThis.location?.hostname === "claude.ai") {
+      this.push({
+        _name: "normal/claude-esc-guard",
+        keydown: (event) =>
+          this.alwaysContinueBubbling(() => {
+            if (KeyboardUtils.isEscape(event)) {
+              DomUtils.consumeKeyup(event);
+            }
+          }),
+      });
+    }
+
     chrome.storage.session.get(
       "normalModeKeyStateMapping",
       (items) => this.setKeyMapping(items.normalModeKeyStateMapping),
@@ -143,6 +157,12 @@ const NormalModeCommands = {
   },
   scrollRight(count) {
     Scroller.scrollBy("x", Settings.get("scrollStepSize") * count);
+  },
+
+  // Keyboard-only selection of the scrollable area (side panel, chat, page) that scroll commands
+  // act on.
+  cycleScrollFocus(_count, { registryEntry }) {
+    Scroller.cycleScrollTarget(!!registryEntry?.options?.backwards);
   },
 
   // Tab navigation: back, forward.

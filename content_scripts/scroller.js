@@ -3,6 +3,13 @@
 // scroll the whole document.
 let activatedElement = null;
 
+// C5: the last trusted mouse position, and when the mouse last moved and when an element was last
+// activated (clicked). The pointer is only preferred if the mouse moved after the last activation,
+// so clicking a link via hints and then pressing j keeps the old behavior.
+let lastMousePosition = null;
+let lastMouseMoveTime = 0;
+let lastActivationTime = 0;
+
 // Previously, the main scrolling element was document.body. If the "experimental web platform
 // features" flag is enabled, then we need to use document.scrollingElement instead. There's an
 // explanation in #2168: https://github.com/philc/vimium/pull/2168#issuecomment-236488091
@@ -132,6 +139,35 @@ const findScrollableElement = function (element, direction, amount, factor) {
     element = DomUtils.getContainingElement(element) || getScrollingElement();
   }
   return element;
+};
+
+// Hosts on which scrolling prefers the element under the mouse pointer. null means all sites (D4).
+// To restrict it, use e.g. ["claude.ai"].
+const pointerScrollHosts = null;
+
+// The element under the mouse pointer, or null if the pointer should not be used right now.
+const getPointerScrollTarget = function () {
+  if (!lastMousePosition || (lastMouseMoveTime <= lastActivationTime)) {
+    return null;
+  }
+  if (pointerScrollHosts && !pointerScrollHosts.includes(globalThis.location.hostname)) {
+    return null;
+  }
+  return document.elementFromPoint(lastMousePosition.x, lastMousePosition.y);
+};
+
+// Find the element to scroll: first the scrollable element under the pointer, then fall back to
+// the activated element as before. If the pointer only leads up to the page's main scrolling
+// element, we use the fallback, which may be a better choice (e.g. a scrollable div).
+const findScrollableElementForScroll = function (direction, amount, factor) {
+  const pointerElement = getPointerScrollTarget();
+  if (pointerElement) {
+    const element = findScrollableElement(pointerElement, direction, amount, factor);
+    if (element !== getScrollingElement()) {
+      return element;
+    }
+  }
+  return findScrollableElement(activatedElement, direction, amount, factor);
 };
 
 // On some pages, the scrolling element is not actually scrollable. Here, we search the document for
@@ -358,15 +394,94 @@ const Scroller = {
         // NOTE(mrmr1993): event.path has been renamed to event.deepPath in the spec, but this
         // change is not yet implemented by Chrome.
         const path = event.deepPath || event.path;
+        lastActivationTime = Date.now();
         return activatedElement = path ? path[0] : event.target;
       });
     handlerStack.push(handler);
+    if (globalThis.document) {
+      globalThis.addEventListener("mousemove", (event) => {
+        if (event.isTrusted) {
+          lastMousePosition = { x: event.clientX, y: event.clientY };
+          lastMouseMoveTime = Date.now();
+        }
+      }, { capture: true, passive: true });
+    }
     CoreScroller.init();
     this.reset();
   },
 
   reset() {
     activatedElement = null;
+  },
+
+  // The last known trusted mouse position as {x, y}, or null. Used by visual mode.
+  getMousePosition() {
+    return lastMousePosition;
+  },
+
+  // Keyboard-only way to choose which scrollable area j/k/d/u/gg/G act on. Cycles through the
+  // visible scrollable elements in DOM order (side panels, chat, page) and makes the next (or
+  // previous) one the scroll target.
+  cycleScrollTarget(backwards) {
+    const scrollingElement = getScrollingElement();
+    const candidates = [];
+    for (const el of document.querySelectorAll("*")) {
+      if (el.scrollHeight <= el.clientHeight + 1) {
+        continue;
+      }
+      if (!["auto", "scroll", "overlay"].includes(globalThis.getComputedStyle(el).overflowY)) {
+        continue;
+      }
+      if (!DomUtils.getVisibleClientRect(el)) {
+        continue;
+      }
+      if (!isScrollableElement(el, "y", 1, 1)) {
+        continue;
+      }
+      candidates.push(el);
+    }
+    if (
+      scrollingElement && !candidates.includes(scrollingElement) &&
+      doesScroll(scrollingElement, "y", 1, 1)
+    ) {
+      candidates.push(scrollingElement);
+    }
+
+    const n = candidates.length;
+    if (n === 0) {
+      HUD.show("No scrollable areas.", 1000);
+      return;
+    }
+
+    // Find where we are now: the activated element or its closest scrollable ancestor.
+    let index = -1;
+    let node = activatedElement;
+    while (node && index < 0) {
+      index = candidates.indexOf(node);
+      node = node.parentElement;
+    }
+    let next;
+    if (index < 0) {
+      next = backwards ? n - 1 : 0;
+    } else {
+      next = (index + (backwards ? -1 : 1) + n) % n;
+    }
+
+    const target = candidates[next];
+    activatedElement = target;
+    // Count this as an activation so the mouse pointer does not override the choice until the
+    // mouse moves again (see getPointerScrollTarget).
+    lastActivationTime = Date.now();
+
+    if (target !== scrollingElement) {
+      const rect = DomUtils.getVisibleClientRect(target);
+      if (rect) {
+        const { top, left } = DomUtils.getViewportTopLeft();
+        const flashEl = DomUtils.addFlashRect(Rect.translate(rect, left, top));
+        Utils.setTimeout(400, () => DomUtils.removeElement(flashEl));
+      }
+    }
+    HUD.show(`Scroll target ${next + 1}/${n}`, 1000);
   },
 
   // scroll the active element in :direction by :amount * :factor.
@@ -400,7 +515,7 @@ const Scroller = {
     // Avoid the expensive scroll calculation if it will not be used. This reduces costs during
     // smooth, continuous scrolls, and is just an optimization.
     if (!CoreScroller.wouldNotInitiateScroll()) {
-      const element = findScrollableElement(activatedElement, direction, amount, factor);
+      const element = findScrollableElementForScroll(direction, amount, factor);
       const elementAmount = factor * getDimension(element, direction, amount);
       return CoreScroller.scroll(element, direction, elementAmount, continuous);
     }
@@ -415,7 +530,7 @@ const Scroller = {
       return;
     }
 
-    const element = findScrollableElement(activatedElement, direction, pos, 1);
+    const element = findScrollableElementForScroll(direction, pos, 1);
     const amount = getDimension(element, direction, pos) -
       element[scrollProperties[direction].axisName];
     return CoreScroller.scroll(element, direction, amount);

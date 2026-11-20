@@ -47,6 +47,8 @@ class InsertMode extends Mode {
       if (this.passNextKeyKeys.includes(keyString)) {
         new PassNextKeyMode();
       } else if ((event.type === "keydown") && KeyboardUtils.isEscape(event)) {
+        // C1: also swallow the matching keyup, so the page never sees a complete Esc press.
+        DomUtils.consumeKeyup(event);
         if (DomUtils.isFocusable(activeElement)) {
           activeElement.blur();
         }
@@ -70,6 +72,30 @@ class InsertMode extends Mode {
 
     super.init(Object.assign(defaults, options));
 
+    if (this.permanent) {
+      // C2: remember which editable element the user deliberately engaged (see
+      // isUnengagedClaudeBox).
+      this.push({
+        _name: "insert/track-engaged-element",
+        mousedown: (event) =>
+          this.alwaysContinueBubbling(() => {
+            if (
+              (event.target instanceof Element) &&
+              (event.target.isContentEditable || DomUtils.isEditable(event.target))
+            ) {
+              InsertMode.engagedElement = event.target;
+            }
+          }),
+        blur: (event) =>
+          this.alwaysContinueBubbling(() => {
+            const engaged = InsertMode.engagedElement;
+            if (engaged && (event.target instanceof Element) && event.target.contains(engaged)) {
+              InsertMode.engagedElement = null;
+            }
+          }),
+      });
+    }
+
     // Only for tests. This gives us a hook to test the status of the permanently-installed
     // instance.
     if (this.permanent) {
@@ -84,7 +110,12 @@ class InsertMode extends Mode {
     if (this.global) {
       return true;
     }
-    return DomUtils.isFocusable(this.getActiveElement());
+    const activeElement = this.getActiveElement();
+    if (InsertMode.isUnengagedClaudeBox(activeElement)) {
+      // Stay passive so j/k/v work, but still let Escape through so it blurs the box.
+      return (event != null) && (event.type === "keydown") && KeyboardUtils.isEscape(event);
+    }
+    return DomUtils.isFocusable(activeElement);
   }
 
   getActiveElement() {
@@ -98,10 +129,27 @@ class InsertMode extends Mode {
   static suppressEvent(event) {
     return this.suppressedEvent = event;
   }
+
+  // On claude.ai the message box is focused automatically, which would keep Vimium in insert mode
+  // permanently. Treat it as an insert target only after the user clicked it, focused it with a
+  // Vimium command, or pressed `i`.
+  static isUnengagedClaudeBox(element) {
+    if (globalThis.location?.hostname !== "claude.ai") {
+      return false;
+    }
+    if (!element || !element.isContentEditable) {
+      return false;
+    }
+    const engaged = InsertMode.engagedElement;
+    return !(engaged && element.contains(engaged));
+  }
 }
 
 // This allows PostFindMode to suppress the permanently-installed InsertMode instance.
 InsertMode.suppressedEvent = null;
+
+// The editable element the user last deliberately engaged (clicked or focused via Vimium).
+InsertMode.engagedElement = null;
 
 // This implements the pasNexKey command.
 class PassNextKeyMode extends Mode {
