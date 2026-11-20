@@ -106,6 +106,18 @@ const list = [
   },
 
   {
+    name: "scrollSidebarDown",
+    desc: "Scroll the sidebar down (keyboard only)",
+    group: "navigation",
+  },
+
+  {
+    name: "scrollSidebarUp",
+    desc: "Scroll the sidebar up (keyboard only)",
+    group: "navigation",
+  },
+
+  {
     name: "reload",
     desc: "Reload the page",
     group: "navigation",

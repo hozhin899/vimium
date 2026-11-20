@@ -439,6 +439,8 @@ const defaultKeyMappings = {
   "gF": "mainFrame",
   "gp": "cycleScrollFocus",
   "gP": "cycleScrollFocus backwards",
+  "<a-j>": "scrollSidebarDown",
+  "<a-k>": "scrollSidebarUp",
   "gu": "goUp",
   "gU": "goToRoot",
   "i": "enterInsertMode",

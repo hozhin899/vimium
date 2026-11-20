@@ -17,7 +17,7 @@ Confidence: **Confirmed** (seen in code), **Likely** (inferred, depends on page 
 
 | # | Decision | Status |
 |---|----------|--------|
-| D1 | Do **not** use Alt+j / Alt+k as a workaround. The fix must make plain `j`/`k` work. | Final |
+| D1 | Plain `j`/`k` must work for the chat. Alt+j / Alt+k are deliberately mapped to `scrollSidebarDown` / `scrollSidebarUp` (keyboard-only sidebar scrolling); they are not a workaround for `j`/`k`. | Final |
 | D2 | `Esc` must blur the input and must not reach the page as a stop signal. | Final |
 | D3 | Never rewrite whole files. Changes are small FIND/REPLACE patches. | Final |
 | D4 | Side-panel scroll change: apply on all sites or only claude.ai? | **Open** (see section 7) |
@@ -117,3 +117,4 @@ Run after every change. Test with the chat idle **and** while a reply is streami
 |------|--------|--------|
 | 2026-11-20 | C1-C5 patched in `mode_insert.js`, `mode_visual.js`, `scroller.js`, `lib/dom_utils.js`; C6 dropped | Untested, run section 5 |
 | 2026-11-20 | Generalized claude.ai-only checks (C1/C2) to `DomUtils.chatHosts` (claude.ai, chatgpt.com, chat.openai.com, chat.deepseek.com); unengaged message box now also covers `<textarea>` (DeepSeek) | Untested, run section 5 on each site |
+| 2026-11-21 | Added `scrollSidebarDown/Up` on Alt+j / Alt+k (D1 updated); removed all temporary debug logging (handler_stack, vimium_frontend, mode_normal, mode_key_handler) | Untested |

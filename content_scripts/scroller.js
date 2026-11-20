@@ -484,6 +484,46 @@ const Scroller = {
     HUD.show(`Scroll target ${next + 1}/${n}`, 1000);
   },
 
+  // Keyboard-only: scroll the sidebar directly, with no cycling or clicking. The sidebar is the
+  // leftmost narrow (under half the window width) visible element that really scrolls vertically.
+  // direction is 1 (down) or -1 (up).
+  scrollSidebar(direction, count) {
+    let target = null;
+    let targetLeft = Infinity;
+    let targetHeight = 0;
+    for (const el of document.querySelectorAll("*")) {
+      if (el.scrollHeight <= el.clientHeight + 1) {
+        continue;
+      }
+      if (!["auto", "scroll", "overlay"].includes(globalThis.getComputedStyle(el).overflowY)) {
+        continue;
+      }
+      const rect = el.getBoundingClientRect();
+      if ((rect.width < 3) || (rect.height < 3)) {
+        continue;
+      }
+      if (rect.width > globalThis.innerWidth * 0.5) {
+        continue;
+      }
+      if ((rect.bottom < 0) || (rect.top > globalThis.innerHeight)) {
+        continue;
+      }
+      if (!isScrollableElement(el, "y", 1, 1)) {
+        continue;
+      }
+      if ((rect.left < targetLeft - 1) || ((Math.abs(rect.left - targetLeft) <= 1) && (rect.height > targetHeight))) {
+        target = el;
+        targetLeft = rect.left;
+        targetHeight = rect.height;
+      }
+    }
+    if (!target) {
+      HUD.show("No sidebar found.", 1000);
+      return;
+    }
+    CoreScroller.scroll(target, "y", direction * Settings.get("scrollStepSize") * (count || 1));
+  },
+
   // scroll the active element in :direction by :amount * :factor.
   // :factor is needed because :amount can take on string values, which scrollBy converts to element
   // dimensions.

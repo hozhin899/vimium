@@ -165,6 +165,14 @@ const NormalModeCommands = {
     Scroller.cycleScrollTarget(!!registryEntry?.options?.backwards);
   },
 
+  // Keyboard-only sidebar scrolling (see Scroller.scrollSidebar).
+  scrollSidebarDown(count) {
+    Scroller.scrollSidebar(1, count);
+  },
+  scrollSidebarUp(count) {
+    Scroller.scrollSidebar(-1, count);
+  },
+
   // Tab navigation: back, forward.
   goBack(count) {
     history.go(-count);
