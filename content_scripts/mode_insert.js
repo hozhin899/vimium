@@ -134,10 +134,17 @@ class InsertMode extends Mode {
   // permanently. Treat it as an insert target only after the user clicked it, focused it with a
   // Vimium command, or pressed `i`.
   static isUnengagedClaudeBox(element) {
-    if (globalThis.location?.hostname !== "claude.ai") {
+    // Applies to every chat site in DomUtils.chatHosts. The message box is either a
+    // contenteditable (Claude, ChatGPT) or a plain textarea (DeepSeek).
+    if (!DomUtils.isChatHost()) {
       return false;
     }
-    if (!element || !element.isContentEditable) {
+    if (!element) {
+      return false;
+    }
+    const isMessageBox = element.isContentEditable ||
+      (element.nodeName?.toLowerCase() === "textarea");
+    if (!isMessageBox) {
       return false;
     }
     const engaged = InsertMode.engagedElement;

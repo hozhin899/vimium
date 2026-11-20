@@ -14,7 +14,7 @@ class NormalMode extends KeyHandlerMode {
 
     // G1/D2: on claude.ai, never let a full Esc press (keydown + keyup) reach the page from
     // normal mode, since the page treats it as "stop generating".
-    if (globalThis.location?.hostname === "claude.ai") {
+    if (DomUtils.isChatHost()) {
       this.push({
         _name: "normal/claude-esc-guard",
         keydown: (event) =>

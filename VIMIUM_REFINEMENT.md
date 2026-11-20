@@ -116,3 +116,4 @@ Run after every change. Test with the chat idle **and** while a reply is streami
 | Date | Change | Result |
 |------|--------|--------|
 | 2026-11-20 | C1-C5 patched in `mode_insert.js`, `mode_visual.js`, `scroller.js`, `lib/dom_utils.js`; C6 dropped | Untested, run section 5 |
+| 2026-11-20 | Generalized claude.ai-only checks (C1/C2) to `DomUtils.chatHosts` (claude.ai, chatgpt.com, chat.openai.com, chat.deepseek.com); unengaged message box now also covers `<textarea>` (DeepSeek) | Untested, run section 5 on each site |
